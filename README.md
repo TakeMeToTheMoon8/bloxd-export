@@ -5,11 +5,12 @@ This is a simple Python script that allows you to extract .png textures and .glb
 - Python 3.x
 - Beautiful Soup library
 - Requests library
+- Demjson3 Library
 
 ## Installation
 1. Clone or download this repository.
 2. Install the required libraries by running the following command:
-   `pip install beautifulsoup4 requests`
+   `pip install beautifulsoup4 requests demjson3`
 
 ## Usage
 1. Run the script by executing the following command:
