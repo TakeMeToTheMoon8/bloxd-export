@@ -1,20 +1,35 @@
-import re, requests, base64, os
+import re, requests, base64, os, demjson3
 from bs4 import BeautifulSoup
 
 config = {
     'target_site': 'https://bloxd.io/',
+    'target_site_cdn': 'https://bloxdcdn.bloxdhop.io/static/js/',
     'save_path': './extracted/',
 }
 
-site_parsed = BeautifulSoup(requests.get(config['target_site']).text, 'html.parser')
-site_scripts = [sc['src'] for sc in site_parsed.find_all('script', src = True)]
-main_script_url = config['target_site'].removesuffix('/') + site_scripts[-1]
-main_script_content = requests.get(main_script_url).text
-
 flags = re.IGNORECASE | re.MULTILINE
-names_matches = re.finditer(r'\"\./(.+?)\":([0-9]+)', main_script_content, flags) # Catastrophic backtracking sitting here /!\
-models_matches = re.finditer(r'([0-9]+):function\(.\){\"use strict\";.\.exports=\"(data:model/[^;]+;base64[^\"]+)', main_script_content, flags)
-images_matches = re.finditer(r'([0-9]+):function\(.\){\"use strict\";.\.exports=\"(data:image/[^;]+;base64[^\"]+)', main_script_content, flags)
+regex_sites = re.compile(r"\"static/js/\"\+.\+\"\.\"\+(.*)\[.]\+\"\.chunk\.js\"", flags)
+regex_names = re.compile(r'\"\./(.+?)\":([0-9]+)', flags) # Catastrophic backtracking sitting here /!\
+regex_models = re.compile(r'([0-9]+):function\(.\){\"use strict\";.\.exports=\"(data:model/[^;]+;base64[^\"]+)', flags)
+regex_images = re.compile(r'([0-9]+):function\(.\){\"use strict\";.\.exports=\"(data:image/[^;]+;base64[^\"]+)', flags)
+site_parsed = BeautifulSoup(requests.get(config['target_site']).text, 'html.parser')
+
+main_site_script = [sc['src'] for sc in site_parsed.find_all('script', src=True) if '/static/js/' in sc['src']][-1]
+main_site_script_url = config['target_site'].removesuffix('/') + main_site_script
+main_site_script_content = requests.get(main_site_script_url).text
+
+scripts_name_match = re.findall(regex_sites, main_site_script_content)[0]
+scripts_name_dict = demjson3.decode(scripts_name_match)
+scripts_url_list = [f'{config["target_site_cdn"]}{str(numeric_id)}.{scripts_name_dict[numeric_id]}.chunk.js' for numeric_id in scripts_name_dict.keys()]
+
+all_content = ''
+for script_url in scripts_url_list:
+    script_content = requests.get(script_url).text
+    all_content += f'{script_content}\n'
+
+names_matches = re.finditer(regex_names, all_content)
+models_matches = re.finditer(regex_models, all_content)
+images_matches = re.finditer(regex_images, all_content)
 names, models, images = {}, {}, {}
 
 for model_match in models_matches: models[model_match.group(1)] = model_match.group(2)
